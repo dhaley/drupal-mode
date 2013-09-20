@@ -678,8 +678,8 @@ mode-hook."
 
 ;; Load support for various Emacs features if necessary.
 (eval-after-load 'autoinsert '(require 'drupal/autoinsert))
-(eval-after-load 'etags '(require 'drupal/etags))
-(eval-after-load 'gtags '(require 'drupal/gtags))
+;; (eval-after-load 'etags '(require 'drupal/etags))
+;; (eval-after-load 'gtags '(require 'drupal/gtags))
 (eval-after-load 'ispell '(require 'drupal/ispell))
 (eval-after-load 'flymake-phpcs '(require 'drupal/flymake-phpcs))
 ;;;###autoload
