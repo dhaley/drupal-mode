@@ -1,6 +1,6 @@
 ;;; drupal/flycheck.el --- Drupal-mode support for flycheck and phpcs
 
-;; Copyright (C) 2012, 2013 Arne Jørgensen
+;; Copyright (C) 2012, 2013, 2014 Arne Jørgensen
 
 ;; Author: Thomas Fini Hansen <xen@xen.dk>
 
@@ -25,51 +25,58 @@
 
 ;;; Code:
 
+(require 'flycheck)
 (require 'drupal/phpcs)
-
-(defcustom drupal/flycheck-phpcs-js-and-css t
-  "When Non-nil, override Flycheck to use PHPCS for checking CSS and JavaScript files instead of the checkers configured for css-mode and js-mode."
-  :type `(choice
-          (const :tag "Yes" t)
-          (const :tag "No" nil))
-  :group 'drupal)
 
 (defun drupal/flycheck-hook ()
   "Enable drupal-mode support for flycheck."
-  (when (and (apply 'derived-mode-p (append drupal-php-modes drupal-css-modes drupal-js-modes))
-             drupal/phpcs-standard)
-    ;; Set the coding standard to "Drupal" (we checked that it is
-    ;; supported above.
+  (when (and drupal-mode drupal/phpcs-standard)
+    ;; Set the coding standard to "Drupal" (phpcs.el has checked that
+    ;; it's supported).
     (setq flycheck-phpcs-standard drupal/phpcs-standard)
 
     ;; Flycheck will also highlight trailing whitespace as an
     ;; error so no need to highlight it twice.
-    (drupal/phpcs-dont-show-trailing-whitespace)))
+    (when (fboundp 'drupal/phpcs-dont-show-trailing-whitespace)
+      (drupal/phpcs-dont-show-trailing-whitespace))))
 
 (add-hook 'drupal-mode-hook #'drupal/flycheck-hook)
 
-(flycheck-declare-checker css-js-phpcs
-  "Check CSS and JavaScript  using PHP_CodeSniffer.
+(flycheck-define-checker drupal-phpcs
+  "Check non-PHP Drupal files using PHP_CodeSniffer.
 
-PHP_CodeSniffer can be used to check non-PHP files, as exemplified by the
-Drupal code sniffer.
+The Drupal standard includes checks for non-PHP files, this
+checker runs those.
 
 See URL `http://pear.php.net/package/PHP_CodeSniffer/'."
-  :command '("phpcs" "--report=emacs"
-             (option "--standard=" flycheck-phpcs-standard)
-             source)
+  :command ("phpcs" "--report=emacs"
+            (option "--standard=" flycheck-phpcs-standard)
+            source)
   ;; Though phpcs supports Checkstyle output which we could feed to
   ;; `flycheck-parse-checkstyle', we are still using error patterns here,
   ;; because PHP has notoriously unstable output habits.  See URL
   ;; `https://github.com/lunaryorn/flycheck/issues/78' and URL
   ;; `https://github.com/lunaryorn/flycheck/issues/118'
   :error-patterns
-  '(("\\(?1:.*\\):\\(?2:[0-9]+\\):\\(?3:[0-9]+\\): error - \\(?4:.*\\)" error)
-    ("\\(?1:.*\\):\\(?2:[0-9]+\\):\\(?3:[0-9]+\\): warning - \\(?4:.*\\)" warning))
-  :modes '(css-mode js-mode)
+  ((error line-start
+          (file-name) ":" line ":" column ": error - " (message)
+          line-end)
+   (warning line-start
+            (file-name) ":" line ":" column ": warning - " (message)
+            line-end))
+  ;; We'd prefer to just check drupal-mode, but flycheck global mode
+  ;; finds the checker before we get a chance to set drupal-mode.
   :predicate (lambda ()
-               (and drupal/flycheck-phpcs-js-and-css (apply 'derived-mode-p (append drupal-php-modes drupal-css-modes drupal-js-modes)))))
-(add-to-list 'flycheck-checkers 'css-js-phpcs)
+               (apply 'derived-mode-p (append drupal-php-modes drupal-css-modes drupal-js-modes drupal-info-modes))))
+
+;; Append our custom checker.
+(add-to-list 'flycheck-checkers 'drupal-phpcs t)
+;; Add our checker as next-checker to checkers of all supported modes.
+(let ((modes (append drupal-css-modes drupal-js-modes drupal-info-modes)))
+  (dolist (checker (flycheck-defined-checkers))
+          (dolist (mode (flycheck-checker-modes checker))
+                  (if (memq mode modes)
+                      (flycheck-add-next-checker checker 'drupal-phpcs)))))
 
 
 (provide 'drupal/flycheck)

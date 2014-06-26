@@ -1,4 +1,4 @@
-;;; drupal/gtags.el --- Drupal-mode support for gtags
+;;; drupal/ggtags.el --- Drupal-mode support for ggtags.el
 
 ;; Copyright (C) 2012, 2013, 2014 Arne Jørgensen
 
@@ -25,42 +25,38 @@
 
 ;;; Code:
 
-(require 'gtags)
+(require 'ggtags)
 
-(defvar drupal/gtags-global-command (if (boundp 'gtags-global-command)
-                                        gtags-global-command
-                                      (executable-find "global"))
+(defvar drupal/ggtags-global-command (executable-find "global")
   "Name of the GNU GLOBAL `global' executable.
 Include path to the executable if it is not in your $PATH.")
 
-(defun drupal/gtags-enable ()
+(defun drupal/ggtags-enable ()
   "Setup rootdir for gtags."
   (let ((dir (locate-dominating-file (or buffer-file-name default-directory) "GTAGS")))
     (when dir
-      (set (make-local-variable 'gtags-rootdir) dir)
+      (ggtags-mode 1)
+      ;; Connect `drupal-symbol-collection' to `ggtags-mode'
+      ;; completion
+      (setq drupal-symbol-collection
+            (lambda () (all-completions "" ggtags-completion-table)))
+      (setq drupal-get-function-args #'drupal/ggtags-get-function-args))))
 
-      ;; Set `drupal-symbol-collection' to a call to
-      ;; `gtags-completing-gtags' so that inserting hooks will do
-      ;; completion based on gtags.
-      (setq drupal-symbol-collection #'(lambda() (gtags-completing-gtags "" nil t)))
-      (setq drupal-get-function-args #'drupal/gtags-get-function-args)
-      (gtags-mode 1))))
-
-(defun drupal/gtags-get-function-args (symbol &optional version)
+(defun drupal/ggtags-get-function-args (symbol &optional version)
   "Get function arguments from GNU GLOBAL."
-  (when (and (boundp 'gtags-rootdir)
-             (file-exists-p (concat gtags-rootdir "GTAGS")))
+  (when (and (boundp 'ggtags-project-root)
+             (file-exists-p (expand-file-name "GTAGS" ggtags-project-root)))
     (with-temp-buffer
       (ignore-errors
-        (call-process drupal/gtags-global-command nil t nil "-x" symbol)
+        (call-process drupal/ggtags-global-command nil t nil "-x" symbol)
         (goto-char (point-min))
         (search-forward-regexp "[^(]*(\\(.*\\))[^)]*" nil t)
         (match-string-no-properties 1)))))
 
-(add-hook 'drupal-mode-hook #'drupal/gtags-enable)
+(add-hook 'drupal-mode-hook #'drupal/ggtags-enable)
 
 
 
-(provide 'drupal/gtags)
+(provide 'drupal/ggtags)
 
-;;; drupal/gtags.el ends here
+;;; drupal/ggtags.el ends here
