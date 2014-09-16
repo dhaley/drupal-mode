@@ -456,16 +456,19 @@ of the project)."
   "Convert to unix style line ending.
 According to https://drupal.org/coding-standards#indenting you
 should save your files with unix style end of line."
-  (when (and drupal-mode
-             drupal-convert-line-ending
-             (/= (coding-system-eol-type buffer-file-coding-system) 0))
-    (if (or (eq drupal-convert-line-ending t)
-            (y-or-n-p "Convert to unix style line endings?"))
+  (let ((eol-type (coding-system-eol-type buffer-file-coding-system)))
+    (when (vectorp eol-type)
+      (setq eol-type (coding-system-eol-type (aref eol-type 0))))
+    (when (and drupal-mode
+               drupal-convert-line-ending
+               (/= eol-type 0))
+      (if (or (eq drupal-convert-line-ending t)
+              (y-or-n-p "Convert to unix style line endings?"))
+          (progn
+            (message "Coding system conversion")
+            (set-buffer-file-coding-system 'unix))
         (progn
-          (message "Coding system conversion")
-          (set-buffer-file-coding-system 'unix))
-      (progn
-        (setq drupal-convert-line-ending nil)))))
+          (setq drupal-convert-line-ending nil))))))
 
 (defun drupal-search-documentation ()
   "Search Drupal documentation for symbol at point."
