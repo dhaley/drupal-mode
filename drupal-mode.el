@@ -456,17 +456,11 @@ of the project)."
   "Convert to unix style line ending.
 According to https://drupal.org/coding-standards#indenting you
 should save your files with unix style end of line."
-  (let ((eol-type (coding-system-eol-type buffer-file-coding-system)))
-    (when (vectorp eol-type)
-      (setq eol-type (coding-system-eol-type (aref eol-type 0))))
-    (when (and drupal-mode
-               drupal-convert-line-ending
-               (/= eol-type 0))
-      (if (or (eq drupal-convert-line-ending t)
-              (y-or-n-p "Convert to unix style line endings?"))
-          (progn
-            (message "Coding system conversion")
-            (set-buffer-file-coding-system 'unix))
+  (when (and drupal-mode
+             drupal-convert-line-ending
+             (not (equal (coding-system-eol-type (or coding-system-for-write buffer-file-coding-system)) 0)))
+    (if (or (eq drupal-convert-line-ending t)
+            (y-or-n-p "Convert to unix style line endings?"))
         (progn
           (setq drupal-convert-line-ending nil))))))
 
@@ -479,7 +473,10 @@ should save your files with unix style end of line."
        ((and (boundp 'php-extras-function-arguments)
              (hash-table-p php-extras-function-arguments)
              (gethash (symbol-name symbol) php-extras-function-arguments))
-        (php-search-documentation))
+        ;; Older versions of `php-search-documentation' did not take arguments.
+        (condition-case nil
+            (php-search-documentation (symbol-name symbol))
+          (wrong-number-of-arguments (with-no-warnings (php-search-documentation)))))
        ((and drupal-drush-program (string-match "drush" (symbol-name symbol)))
         (browse-url
          (format-spec drupal-drush-search-url `((?v . ,(replace-regexp-in-string "\\([0-9]+\.\\).*\\'" "\\1x" (replace-regexp-in-string ".*-dev" "master" drupal-drush-version)))
