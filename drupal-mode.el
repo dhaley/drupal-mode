@@ -462,7 +462,7 @@ should save your files with unix style end of line."
     (if (or (eq drupal-convert-line-ending t)
             (y-or-n-p "Convert to unix style line endings?"))
         (progn
-          (setq drupal-convert-line-ending nil))))))
+          (setq drupal-convert-line-ending nil)))))
 
 (defun drupal-search-documentation ()
   "Search Drupal documentation for symbol at point."
