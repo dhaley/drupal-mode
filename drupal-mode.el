@@ -1,6 +1,6 @@
 ;;; drupal-mode.el --- Advanced minor mode for Drupal development
 
-;; Copyright (C) 2012, 2013, 2014 Arne Jørgensen
+;; Copyright (C) 2012, 2013, 2014, 2015 Arne Jørgensen
 
 ;; Author: Arne Jørgensen <arne@arnested.dk>
 ;; URL: https://github.com/arnested/drupal-mode
@@ -168,6 +168,12 @@ Include path to the executable if it is not in your $PATH."
 (defcustom drupal-other-modes (list 'dired-mode)
   "Other major modes that should enable Drupal mode."
   :type '(repeat symbol)
+  :group 'drupal)
+
+;;;###autoload
+(defcustom drupal-ignore-paths-regexp "\\(vendor\\|node_modules\\)"
+  "Don't enable Drupal mode per default in files whose path match this regexp."
+  :type 'regexp
   :group 'drupal)
 
 (defcustom drupal-enable-auto-fill-mode t
@@ -550,6 +556,10 @@ buffer."
                                        (concat "Implements " hook "(): ") (drupal-next-update-id)))
                       (replace-regexp-in-string (regexp-quote update-id-placeholder) (number-to-string update-id) hook t))
                   hook))))
+  ;; User error if the hook is already inserted in the file.
+  (when (and (boundp 'imenu--index-alist)
+             (assoc (replace-regexp-in-string "^hook" (drupal-module-name) v2) (assoc "Named Functions" imenu--index-alist)))
+    (user-error "%s already exists in file." (replace-regexp-in-string "^hook" (drupal-module-name) v2)))
   (drupal-ensure-newline)
   "/**\n"
   " * Implements " str "().\n"
@@ -842,8 +852,10 @@ The function is suitable for adding to the supported major modes
 mode-hook."
   (when (apply 'derived-mode-p (append drupal-php-modes drupal-css-modes drupal-js-modes drupal-info-modes drupal-other-modes))
     (drupal-detect-drupal-version)
-    (when (or drupal-version
-              (string-match "drush" (or buffer-file-name default-directory)))
+    (when (and
+           (or drupal-version
+               (string-match "drush" (or buffer-file-name default-directory)))
+           (not (string-match drupal-ignore-paths-regexp (or buffer-file-name default-directory))))
       (drupal-mode 1))))
 
 ;;;###autoload
