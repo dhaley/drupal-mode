@@ -878,8 +878,6 @@ mode-hook."
 (eval-after-load 'flymake-phpcs '(require 'drupal/flymake-phpcs))
 (eval-after-load 'flycheck '(require 'drupal/flycheck))
 ;;;###autoload
-(eval-after-load 'pcomplete '(require 'drupal/pcomplete))
-;;;###autoload
 (eval-after-load 'webjump '(require 'drupal/webjump))
 
 (eval-after-load 'drupal/etags '(require 'drupal/emacs-drush))
