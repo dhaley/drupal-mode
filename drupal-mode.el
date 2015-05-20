@@ -333,16 +333,15 @@ function arguments.")
 
 ;; drupal style
 (defcustom drupal-style
-  '((c-basic-offset . 2)
+  '("php"
+    (c-basic-offset . 2)
     (fill-column . 80)
     (show-trailing-whitespace . t)
     (indent-tabs-mode . nil)
     (require-final-newline . t)
     (c-offsets-alist . ((arglist-close . 0)
                         (arglist-cont-nonempty . c-lineup-math)
-                        (arglist-intro . +)
-                        (case-label . +)
-                        (comment-intro . 0)))
+                        (arglist-intro . +)))
     (c-doc-comment-style . (php-mode . javadoc))
     (c-label-minimum-indentation . 1)
     (c-special-indent-hook . c-gnu-impose-minimum)
@@ -560,6 +559,10 @@ buffer."
   (when (and (boundp 'imenu--index-alist)
              (assoc (replace-regexp-in-string "^hook" (drupal-module-name) v2) (assoc "Named Functions" imenu--index-alist)))
     (user-error "%s already exists in file." (replace-regexp-in-string "^hook" (drupal-module-name) v2)))
+  ;; User error if the hook is already inserted elsewhere.
+  (when (and drupal-get-function-args
+             (funcall drupal-get-function-args (replace-regexp-in-string "^hook" (drupal-module-name) v2)))
+    (user-error "%s already exists elsewhere." (replace-regexp-in-string "^hook" (drupal-module-name) v2)))
   (drupal-ensure-newline)
   "/**\n"
   " * Implements " str "().\n"
