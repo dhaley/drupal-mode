@@ -5,7 +5,7 @@
 ;; Author: Arne Jørgensen <arne@arnested.dk>
 ;; URL: https://github.com/arnested/drupal-mode
 ;; Created: January 17, 2012
-;; Version: 0.5.0
+;; Version: 0.6.1
 ;; Package-Requires: ((php-mode "1.5.0"))
 ;; Keywords: programming, php, drupal
 
@@ -36,6 +36,8 @@
 (require 'cl)
 (require 'php-mode)
 (require 'format-spec)
+(require 'json)
+(require 'sql)
 
 ;; Silence byte compiler.
 (defvar css-indent-level)
@@ -239,7 +241,8 @@ get better filling in Doxygen comments."
     (?f . drupal-insert-function)
     (?m . drupal-module-name)
     (?e . drupal-drush-php-eval)
-    (?t . drupal-wrap-string-in-t-function))
+    (?t . drupal-wrap-string-in-t-function)
+    (?s . drupal-drush-sql-cli))
   "Map of mnemonic keys and functions for keyboard shortcuts.
 See `drupal-mode-map'.")
 
@@ -302,14 +305,6 @@ function arguments.")
 
   ;; Stuff special for php-mode buffers.
   (when (apply 'derived-mode-p drupal-php-modes)
-    ;; Show function arguments from GNU GLOBAL for function at point
-    ;; after a short delay of idle time.
-    (when (and drupal-get-function-args
-               (fboundp 'eldoc-mode))
-      (set (make-local-variable 'eldoc-documentation-function)
-           #'drupal-eldoc-documentation-function)
-      (eldoc-mode 1))
-
     ;; Set correct comment style for inline comments.
     (setq comment-start "//")
     (setq comment-padding " ")
@@ -371,10 +366,10 @@ of the project)."
   (if (and drupal-rootdir
            drupal-drush-program)
       (let ((root drupal-rootdir))
-        (with-temp-buffer
-          (message "Clearing all caches...")
-          (call-process drupal-drush-program nil nil nil (concat "--root=" (expand-file-name root)) "cache-clear" "all")
-          (message "Clearing all caches...done")))
+        (message "Clearing all caches...")
+        (if (fboundp 'async-start-process)
+            (async-start-process "drush cache-clear all" drupal-drush-program '(lambda (process-object) (message "Clearing all caches...done")) (concat "--root=" (expand-file-name root)) "cache-clear" "all")
+          (call-process drupal-drush-program nil 0 nil (concat "--root=" (expand-file-name root)) "cache-clear" "all")))
     (message "Can't clear caches. No DRUPAL_ROOT and/or no drush command.")))
 
 (defun drupal-drush-php-eval ()
@@ -436,6 +431,10 @@ of the project)."
   [menu-bar drupal cache-clear]
   '(menu-item "Clear all caches" drupal-drush-cache-clear
               :enable (and drupal-rootdir drupal-drush-program)))
+(define-key drupal-mode-map
+  [menu-bar drupal sql-cli]
+  '(menu-item "Open SQL shell" drupal-drush-sql-cli
+    :enable (and drupal-rootdir drupal-drush-program)))
 
 (define-key drupal-mode-map
   [menu-bar drupal drupal-project drupal-project-bugs]
@@ -503,10 +502,10 @@ buffer."
     (let* ((root drupal-rootdir)
            (tmp (ignore-errors
                   (replace-regexp-in-string
-                   "[\n\r]" ""
+                   "[\n\r].*" ""
                    (with-output-to-string
                      (with-current-buffer standard-output
-                       (call-process drupal-drush-program nil (list t nil) nil (concat "--root=" (expand-file-name root)) "core-status" "temp" "--pipe" "--format=list" "--strict=0"))))))
+                       (call-process drupal-drush-program nil (list t nil) nil "core-status" "--fields=temp" "--pipe" "--format=list" "--strict=0"))))))
            (dd (concat tmp "/drupal_debug.txt")))
       (when (file-readable-p dd)
         (find-file-other-window dd)
@@ -523,6 +522,48 @@ buffer."
         (forward-char)
         (search-forward-regexp "\\(\"\\|'\\)")
         (insert ")")))))
+
+(defun drupal-drush-sql-cli ()
+  "Run a SQL shell using \"drush sql-cli\" in a SQL-mode comint buffer."
+  (interactive)
+  (let* ((json-object-type 'plist)
+         (config
+          (json-read-from-string
+           (with-temp-buffer
+             (call-process drupal-drush-program nil t nil
+                           "sql-conf" "--format=json")
+             (buffer-string)))))
+    (when (not config)
+      (error "No Drupal SQL configuration found."))
+    (destructuring-bind (&key database driver &allow-other-keys) config
+      (let ((sql-interactive-product
+             (drupal--db-driver-to-sql-product driver))
+            (start-buffer (current-buffer))
+            (sqli-buffer
+             (make-comint (format "SQL (%s)" database)
+                          drupal-drush-program nil "sql-cli")))
+        (with-current-buffer sqli-buffer
+          (sql-interactive-mode)
+          (set (make-local-variable 'sql-buffer)
+               (buffer-name (current-buffer)))
+
+          ;; Set `sql-buffer' in the start buffer
+          (with-current-buffer start-buffer
+            (when (derived-mode-p 'sql-mode)
+              (setq sql-buffer (buffer-name sqli-buffer))
+              (run-hooks 'sql-set-sqli-hook)))
+
+          ;; All done.
+          (run-hooks 'sql-login-hook)
+          (pop-to-buffer sqli-buffer))))))
+
+(defun drupal--db-driver-to-sql-product (driver)
+  "Translate a Drupal DB driver name into a sql-mode symbol."
+  (let ((driver (intern driver)))
+    (cond
+      ((eq driver 'pgsql) 'postgres)
+      ((assq driver sql-product-alist) driver)
+      (t 'ansi))))
 
 
 
@@ -561,7 +602,8 @@ buffer."
     (user-error "%s already exists in file." (replace-regexp-in-string "^hook" (drupal-module-name) v2)))
   ;; User error if the hook is already inserted elsewhere.
   (when (and drupal-get-function-args
-             (funcall drupal-get-function-args (replace-regexp-in-string "^hook" (drupal-module-name) v2)))
+             (ignore-errors
+               (funcall drupal-get-function-args (replace-regexp-in-string "^hook" (drupal-module-name) v2))))
     (user-error "%s already exists elsewhere." (replace-regexp-in-string "^hook" (drupal-module-name) v2)))
   (drupal-ensure-newline)
   "/**\n"
@@ -874,8 +916,10 @@ mode-hook."
 
 ;; Load support for various Emacs features if necessary.
 (eval-after-load 'autoinsert '(require 'drupal/autoinsert))
+(eval-after-load 'eldoc '(require 'drupal/eldoc))
 (eval-after-load 'etags '(require 'drupal/etags))
 (eval-after-load 'gtags '(require 'drupal/gtags))
+(eval-after-load 'helm-gtags '(require 'drupal/gtags))
 (eval-after-load 'ggtags '(require 'drupal/ggtags))
 (eval-after-load 'ispell '(require 'drupal/ispell))
 (eval-after-load 'flymake-phpcs '(require 'drupal/flymake-phpcs))
