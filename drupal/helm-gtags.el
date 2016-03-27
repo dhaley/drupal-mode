@@ -1,6 +1,6 @@
 ;;; drupal/helm-gtags.el --- Drupal-mode support for helm-gtags
 
-;; Copyright (C) 2012, 2013, 2014, 2015 Arne Jørgensen
+;; Copyright (C) 2012, 2013, 2014, 2015, 2016 Arne Jørgensen
 
 ;; Author: Arne Jørgensen <arne@arnested.dk>
 
@@ -27,9 +27,7 @@
 
 (require 'helm-gtags)
 
-(defvar drupal/helm-gtags-global-command (if (boundp 'gtags-global-command)
-                                        gtags-global-command
-                                      (executable-find "global"))
+(defvar drupal/helm-gtags-global-command (executable-find "global")
   "Name of the GNU GLOBAL `global' executable.
 Include path to the executable if it is not in your $PATH.")
 
@@ -48,8 +46,7 @@ Include path to the executable if it is not in your $PATH.")
 
 (defun drupal/helm-gtags-get-function-args (symbol &optional version)
   "Get function arguments from GNU GLOBAL."
-  (when (and (boundp 'gtags-rootdir)
-             (file-exists-p (concat helm-gtags--tag-location "GTAGS")))
+  (when (file-exists-p (concat helm-gtags--tag-location "GTAGS"))
     (with-temp-buffer
       (ignore-errors
         (call-process drupal/helm-gtags-global-command nil t nil "-x" symbol)
