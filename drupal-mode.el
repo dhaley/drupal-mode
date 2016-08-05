@@ -467,10 +467,7 @@ should save your files with unix style end of line."
     (if (or (eq drupal-convert-line-ending t)
             (y-or-n-p "Convert to unix style line endings?"))
         (progn
-          (message "Coding system conversion")
-          (set-buffer-file-coding-system 'unix))
-      (progn
-        (setq drupal-convert-line-ending nil)))))
+          (setq drupal-convert-line-ending nil)))))
 
 (defun drupal-search-documentation ()
   "Search Drupal documentation for symbol at point."
@@ -927,8 +924,6 @@ mode-hook."
 (eval-after-load 'ispell '(require 'drupal/ispell))
 (eval-after-load 'flymake-phpcs '(require 'drupal/flymake-phpcs))
 (eval-after-load 'flycheck '(require 'drupal/flycheck))
-;;;###autoload
-(eval-after-load 'pcomplete '(require 'drupal/pcomplete))
 ;;;###autoload
 (eval-after-load 'webjump '(require 'drupal/webjump))
 
